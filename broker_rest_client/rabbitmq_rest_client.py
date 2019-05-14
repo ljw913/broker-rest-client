@@ -183,6 +183,9 @@ class RabbitMQRestClient(Requestor, ClientFactory):
         :param topic: the topic the queue is bound to
         :param key: the routing_key of the binding
         """
+        if topic == 'default':
+            topic = 'amq.topic'
+
         bindings = self.get_queue_bindings(queue, topic=topic, key=key)
 
         if not bindings:
