@@ -32,6 +32,7 @@ from urllib.parse import quote
 
 from requests import Response
 from rest_client import Requestor, ClientFactory
+from rest_client.errors import APIError
 from rest_client.typing import RequestHandler
 
 __author__ = "EUROCONTROL (SWIM)"
@@ -56,6 +57,9 @@ class RabbitMQRestClient(Requestor, ClientFactory):
     def _get_create_topic_url(self, name):
         return f'api/exchanges/{self.vhost}/{name}'
 
+    def _get_delete_topic_url(self, name):
+        return self._get_create_topic_url(name)
+
     def _get_create_queue_url(self, name):
         return f'api/queues/{self.vhost}/{name}'
 
@@ -65,11 +69,21 @@ class RabbitMQRestClient(Requestor, ClientFactory):
     def _get_delete_queue_url(self, name):
         return f'api/queues/{self.vhost}/{name}'
 
-    def _get_bindings_url(self):
-        return f'api/bindings'
+    def _get_queue_bindings_url(self, queue):
+        return f'api/queues/{self.vhost}/{queue}/bindings'
 
-    def create_topic(self, name: str, durable: t.Optional[bool] = False) -> Response:
+    def _get_delete_queue_binding_url(self, queue, topic, props):
+        return f'api/bindings/{self.vhost}/e/{topic}/q/{queue}/{props}'
+
+    def create_topic(self, name: str, durable: t.Optional[bool] = False) -> None:
+        """
+        Creates a new topic in RabbitMQ. It is basically an exchange of type 'topic'
+        :param name:
+        :param durable: indicates whether it survives a broker restart
+        :raises: rest_client.errors.APIError
+        """
         url = self._get_create_topic_url(name)
+
         data = {
             "type": "topic",
             "durable": durable,
@@ -78,20 +92,47 @@ class RabbitMQRestClient(Requestor, ClientFactory):
             "arguments": {}
         }
 
-        return self.perform_request('PUT', url, json=data)
+        self.perform_request('PUT', url, json=data)
 
-    def create_queue(self, name: str, durable: t.Optional[bool] = False) -> Response:
+    def delete_topic(self, name: str) -> None:
+        """
+        Deletes a topic
+        :param name:
+        :raises: rest_client.errors.APIError
+        """
+        url = self._get_delete_topic_url(name)
+
+        self.perform_request('DELETE', url)
+
+    def create_queue(self, name: str, durable: t.Optional[bool] = False) -> None:
+        """
+        Creates a new queue
+        :param name:
+        :param durable: indicates whether the queue survives a broker restart
+        :raises: rest_client.errors.APIError
+        """
         url = self._get_create_queue_url(name)
         data = {
             "durable": durable,
             "auto_delete": False,
-            "arguments": {},
-            "node": "rabbit@my-rabbit"
+            "arguments": {}
         }
 
-        return self.perform_request('PUT', url, json=data)
+        self.perform_request('PUT', url, json=data)
 
-    def bind_queue(self, queue: str, topic: str, key: str, durable: t.Optional[bool] = False) -> Response:
+    def bind_queue_to_topic(self,
+                            queue: str,
+                            key: str,
+                            topic: str = 'default',
+                            durable: t.Optional[bool] = False) -> None:
+        """
+        Binds a queue with a topic using a routing key
+        :param queue: the name of the queue
+        :param key: the routing key by which the queue will be bound to the topic
+        :param topic: the name of the topic
+        :param durable: indicates whether the binding will survive a broker restart
+        :raises: rest_client.errors.APIError
+        """
         if topic == 'default':
             topic = 'amq.topic'
 
@@ -103,16 +144,52 @@ class RabbitMQRestClient(Requestor, ClientFactory):
             }
         }
 
-        return self.perform_request('POST', url, json=data)
+        self.perform_request('POST', url, json=data)
 
-    def delete_queue(self, name: str) -> Response:
+    def delete_queue(self, name: str) -> None:
+        """
+        Deletes a queue
+        :param name:
+        :raises: rest_client.errors.APIError
+        """
         url = self._get_delete_queue_url(name)
 
-        return self.perform_request('DELETE', url)
+        self.perform_request('DELETE', url)
 
-    def get_bindings(self):
-        url = self._get_bindings_url()
+    def get_queue_bindings(self, queue: str, topic: str = None, key: str = None) -> t.List[t.Dict]:
+        """
+        Retrieves the bindings of a given queue
+        :param queue: the name of the queue
+        :param topic: the name of the topic (for filtering)
+        :param key: the routing key of the binding (for filtering)
+        :raises: rest_client.errors.APIError
+        """
+        url = self._get_queue_bindings_url(queue)
 
-        response = self.perform_request('GET', url)
+        bindings = self.perform_request('GET', url)
 
-        return response
+        if topic is not None:
+            bindings = [b for b in bindings if b['source'] == topic]
+
+        if key is not None:
+            bindings = [b for b in bindings if b['routing_key'] == key]
+
+        return bindings
+
+    def delete_queue_binding(self, queue: str, topic: str, key: str) -> None:
+        """
+        Deletes a queue binding
+        :param queue: the name of the queue
+        :param topic: the topic the queue is bound to
+        :param key: the routing_key of the binding
+        """
+        bindings = self.get_queue_bindings(queue, topic=topic, key=key)
+
+        if not bindings:
+            raise APIError(f"No binding found between topic '{topic}' and queue '{queue}' with name '{key}'", 404)
+
+        props = bindings[0]['properties_key']
+
+        url = self._get_delete_queue_binding_url(queue, topic, props)
+
+        self.perform_request('DELETE', url)

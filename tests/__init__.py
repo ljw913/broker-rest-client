@@ -28,24 +28,4 @@ http://opensource.org/licenses/BSD-3-Clause
 Details on EUROCONTROL: http://www.eurocontrol.int
 """
 
-from setuptools import setup, find_packages
-
-__author__ = 'EUROCONTROL (SWIM)'
-
-setup(
-    name='broker-rest-client',
-    version='0.0.2',
-    description='Broker Rest Client',
-    author='EUROCONTROL (SWIM)',
-    author_email='',
-    packages=find_packages(exclude=['tests']),
-    url='https://bitbucket.org/antavelos-eurocontrol/broker-rest-client',
-    install_requires=[],
-    tests_require=[
-        'pytest',
-        'pytest-cov'
-    ],
-    platforms=['Any'],
-    license='see LICENSE',
-    zip_safe=False
-)
+__author__ = "EUROCONTROL (SWIM)"
