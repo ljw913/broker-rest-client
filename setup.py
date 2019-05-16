@@ -34,7 +34,7 @@ __author__ = 'EUROCONTROL (SWIM)'
 
 setup(
     name='broker-rest-client',
-    version='0.0.3',
+    version='0.0.4',
     description='Broker Rest Client',
     author='EUROCONTROL (SWIM)',
     author_email='',

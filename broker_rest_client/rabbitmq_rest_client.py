@@ -58,16 +58,19 @@ class RabbitMQRestClient(Requestor, ClientFactory):
         return f'api/exchanges/{self.vhost}/{name}'
 
     def _get_delete_topic_url(self, name):
-        return self._get_create_topic_url(name)
+        return f'api/exchanges/{self.vhost}/{name}'
+
+    def _get_queue_url(self, name):
+        return f'api/queues/{self.vhost}/{name}'
 
     def _get_create_queue_url(self, name):
         return f'api/queues/{self.vhost}/{name}'
 
-    def _get_bind_queue_url(self, queue, topic):
-        return f'api/bindings/{self.vhost}/e/{topic}/q/{queue}'
-
     def _get_delete_queue_url(self, name):
         return f'api/queues/{self.vhost}/{name}'
+
+    def _get_bind_queue_url(self, queue, topic):
+        return f'api/bindings/{self.vhost}/e/{topic}/q/{queue}'
 
     def _get_queue_bindings_url(self, queue):
         return f'api/queues/{self.vhost}/{queue}/bindings'
@@ -104,6 +107,16 @@ class RabbitMQRestClient(Requestor, ClientFactory):
 
         self.perform_request('DELETE', url)
 
+    def get_queue(self, name: str) -> None:
+        """
+        Retrieves a queue
+        :param name:
+        :raises: rest_client.errors.APIError
+        """
+        url = self._get_queue_url(name)
+
+        return self.perform_request('GET', url)
+
     def create_queue(self, name: str, durable: t.Optional[bool] = False) -> None:
         """
         Creates a new queue
@@ -119,6 +132,16 @@ class RabbitMQRestClient(Requestor, ClientFactory):
         }
 
         self.perform_request('PUT', url, json=data)
+
+    def delete_queue(self, name: str) -> None:
+        """
+        Deletes a queue
+        :param name:
+        :raises: rest_client.errors.APIError
+        """
+        url = self._get_delete_queue_url(name)
+
+        self.perform_request('DELETE', url)
 
     def bind_queue_to_topic(self,
                             queue: str,
@@ -145,16 +168,6 @@ class RabbitMQRestClient(Requestor, ClientFactory):
         }
 
         self.perform_request('POST', url, json=data)
-
-    def delete_queue(self, name: str) -> None:
-        """
-        Deletes a queue
-        :param name:
-        :raises: rest_client.errors.APIError
-        """
-        url = self._get_delete_queue_url(name)
-
-        self.perform_request('DELETE', url)
 
     def get_queue_bindings(self, queue: str, topic: str = None, key: str = None) -> t.List[t.Dict]:
         """
