@@ -52,6 +52,115 @@ def bindings():
         {'source': 'topic5', 'routing_key': 'key2'},
     ]
 
+
+def test_vhost():
+    client = RabbitMQRestClient(request_handler=Mock())
+    assert "%2F" == client.vhost
+
+
+def test_create_topic():
+    durable, auto_delete = False, False
+    topic_name = 'some topic'
+
+    data = {
+            "type": "topic",
+            "durable": durable,
+            "auto_delete": auto_delete,
+            "internal": False,
+            "arguments": {}
+        }
+
+    client = RabbitMQRestClient(request_handler=Mock())
+    mock_request = Mock()
+    client.perform_request = mock_request
+
+    client.create_topic(topic_name)
+
+    mock_request.assert_called_once_with('PUT', f'api/exchanges/{client.vhost}/{topic_name}', json=data)
+
+
+def test_delete_topic():
+    client = RabbitMQRestClient(request_handler=Mock())
+    mock_request = Mock()
+    client.perform_request = mock_request
+
+    topic_name = 'some topic'
+
+    client.delete_topic(topic_name)
+
+    mock_request.assert_called_once_with('DELETE', f'api/exchanges/{client.vhost}/{topic_name}')
+
+
+def test_get_queue():
+    client = RabbitMQRestClient(request_handler=Mock())
+    mock_request = Mock()
+    client.perform_request = mock_request
+
+    queue_name = 'some queue'
+
+    client.get_queue(queue_name)
+
+    mock_request.assert_called_once_with('GET', f'api/queues/{client.vhost}/{queue_name}')
+
+
+def test_create_queue():
+    durable, auto_delete = False, False
+    queue_name = 'some topic'
+
+    data = {
+        "durable": durable,
+        "auto_delete": auto_delete,
+        "arguments": {}
+    }
+
+    client = RabbitMQRestClient(request_handler=Mock())
+    mock_request = Mock()
+    client.perform_request = mock_request
+
+    client.create_queue(queue_name)
+
+    mock_request.assert_called_once_with('PUT', f'api/queues/{client.vhost}/{queue_name}', json=data)
+
+
+def test_delete_queue():
+    client = RabbitMQRestClient(request_handler=Mock())
+    mock_request = Mock()
+    client.perform_request = mock_request
+
+    queue_name = 'some queue'
+
+    client.delete_queue(queue_name)
+
+    mock_request.assert_called_once_with('DELETE', f'api/queues/{client.vhost}/{queue_name}')
+
+
+@pytest.mark.parametrize('topic_name, expected_topic_name', [
+    ('default', 'amq.topic'),
+    ('any_other_topic_name', 'any_other_topic_name')
+])
+def test_bind_queue_to_topic(topic_name, expected_topic_name):
+    queue_name = 'some queue'
+    durable = False
+    key = 'routing key'
+
+    data = {
+        "routing_key": key,
+        "arguments": {
+            "durable": durable
+        }
+    }
+
+    client = RabbitMQRestClient(request_handler=Mock())
+    mock_request = Mock()
+    client.perform_request = mock_request
+
+    client.bind_queue_to_topic(queue_name, key, topic_name, durable)
+
+    mock_request.assert_called_once_with('POST',
+                                         f'api/bindings/{client.vhost}/e/{expected_topic_name}/q/{queue_name}',
+                                         json=data)
+
+
 @pytest.mark.parametrize('topic, key, expected_binding', [
     ('topic1', 'key1', {'source': 'topic1', 'routing_key': 'key1'}),
     ('topic2', 'key2', {'source': 'topic2', 'routing_key': 'key2'}),
@@ -84,8 +193,14 @@ def test_delete_binding__no_binding_is_found__raises_404():
     assert "[404] - No binding found between topic 'topic' and queue 'queue' with name 'key'" == str(e.value)
 
 
-def test_delete_binding__url_contains_properties_key_of_binding():
+@pytest.mark.parametrize('topic_name, expected_topic_name', [
+    ('default', 'amq.topic'),
+    ('any_other_topic_name', 'any_other_topic_name')
+])
+def test_delete_binding__url_contains_properties_key_of_binding(topic_name, expected_topic_name):
     properties_key = 'props'
+    queue_name = 'queue'
+    key = 'routing_key'
 
     client = RabbitMQRestClient(request_handler=Mock())
 
@@ -96,6 +211,7 @@ def test_delete_binding__url_contains_properties_key_of_binding():
     mock_request = Mock()
     client.perform_request = mock_request
 
-    client.delete_queue_binding('queue', 'topic', 'key')
+    client.delete_queue_binding(queue_name, topic_name, key)
 
-    mock_request.assert_called_once_with('DELETE', f'api/bindings/%2F/e/topic/q/queue/{properties_key}')
+    mock_request.assert_called_once_with('DELETE',
+                                         f'api/bindings/%2F/e/{expected_topic_name}/q/{queue_name}/{properties_key}')

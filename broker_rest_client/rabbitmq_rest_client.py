@@ -40,19 +40,15 @@ __author__ = "EUROCONTROL (SWIM)"
 
 class RabbitMQRestClient(Requestor, ClientFactory):
 
-    def __init__(self, request_handler: RequestHandler) -> None:
+    def __init__(self, request_handler: RequestHandler, vhost: t.Optional[str] = None) -> None:
         Requestor.__init__(self, request_handler)
         self._request_handler = request_handler
 
-        self._vhost = "/"
+        self._vhost = vhost or "/"
 
     @property
     def vhost(self):
         return quote(self._vhost, safe='')
-
-    @vhost.setter
-    def vhost(self, value):
-        self._vhost = value
 
     def _get_create_topic_url(self, name):
         return f'api/exchanges/{self.vhost}/{name}'
@@ -78,11 +74,12 @@ class RabbitMQRestClient(Requestor, ClientFactory):
     def _get_delete_queue_binding_url(self, queue, topic, props):
         return f'api/bindings/{self.vhost}/e/{topic}/q/{queue}/{props}'
 
-    def create_topic(self, name: str, durable: t.Optional[bool] = False) -> None:
+    def create_topic(self, name: str, durable: t.Optional[bool] = False, auto_delete: t.Optional[bool] = False) -> None:
         """
         Creates a new topic in RabbitMQ. It is basically an exchange of type 'topic'
         :param name:
         :param durable: indicates whether it survives a broker restart
+        :param auto_delete: indicates whether the topic will be deleted when all queues are unbound
         :raises: rest_client.errors.APIError
         """
         url = self._get_create_topic_url(name)
@@ -90,7 +87,7 @@ class RabbitMQRestClient(Requestor, ClientFactory):
         data = {
             "type": "topic",
             "durable": durable,
-            "auto_delete": False,
+            "auto_delete": auto_delete,
             "internal": False,
             "arguments": {}
         }
@@ -117,17 +114,18 @@ class RabbitMQRestClient(Requestor, ClientFactory):
 
         return self.perform_request('GET', url)
 
-    def create_queue(self, name: str, durable: t.Optional[bool] = False) -> None:
+    def create_queue(self, name: str, durable: t.Optional[bool] = False, auto_delete: t.Optional[bool] = False) -> None:
         """
         Creates a new queue
         :param name:
         :param durable: indicates whether the queue survives a broker restart
+        :param auto_delete: indicates whether the queue will be deleted
         :raises: rest_client.errors.APIError
         """
         url = self._get_create_queue_url(name)
         data = {
             "durable": durable,
-            "auto_delete": False,
+            "auto_delete": auto_delete,
             "arguments": {}
         }
 
