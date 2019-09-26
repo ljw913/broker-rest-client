@@ -27,25 +27,36 @@ http://opensource.org/licenses/BSD-3-Clause
 
 Details on EUROCONTROL: http://www.eurocontrol.int
 """
+import pytest
 
-from setuptools import setup, find_packages
+from broker_rest_client.models import RabbitMQUserPermissions, RabbitMQUser
 
-__author__ = 'EUROCONTROL (SWIM)'
+__author__ = "EUROCONTROL (SWIM)"
 
-setup(
-    name='broker-rest-client',
-    version='0.0.6',
-    description='Broker Rest Client',
-    author='EUROCONTROL (SWIM)',
-    author_email='',
-    packages=find_packages(exclude=['tests']),
-    url='https://bitbucket.org/antavelos-eurocontrol/broker-rest-client',
-    install_requires=[],
-    tests_require=[
-        'pytest',
-        'pytest-cov'
-    ],
-    platforms=['Any'],
-    license='see LICENSE',
-    zip_safe=False
-)
+
+@pytest.mark.parametrize('permissions_object, expected_permissions_dict', [
+    (
+        RabbitMQUserPermissions(configure=".*", write=".*", read=".*"),
+        {'configure': '.*', 'write': ".*", 'read': ".*"}
+    ),
+    (
+        RabbitMQUserPermissions(configure="", write="", read=""),
+        {'configure': '', 'write': "", 'read': ""}
+    )
+])
+def test_rabbitmquserpermissions__to_json(permissions_object, expected_permissions_dict):
+    assert permissions_object.to_json() == expected_permissions_dict
+
+
+@pytest.mark.parametrize('user_dict, expected_object', [
+    (
+        {'name': 'username', 'tags': "administrator,management"},
+        RabbitMQUser(name='username', tags=['administrator', 'management'])
+    ),
+    (
+        {'name': 'username', 'tags': ""},
+        RabbitMQUser(name='username')
+    )
+])
+def test_rabbitmquser__from_json(user_dict, expected_object):
+    assert RabbitMQUser.from_json(user_dict) == expected_object

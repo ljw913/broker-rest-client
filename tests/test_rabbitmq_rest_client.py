@@ -32,6 +32,7 @@ from unittest.mock import Mock
 import pytest
 from rest_client.errors import APIError
 
+from broker_rest_client.models import RabbitMQUser, RabbitMQUserPermissions
 from broker_rest_client.rabbitmq_rest_client import RabbitMQRestClient
 
 __author__ = "EUROCONTROL (SWIM)"
@@ -215,3 +216,146 @@ def test_delete_binding__url_contains_properties_key_of_binding(topic_name, expe
 
     mock_request.assert_called_once_with('DELETE',
                                          f'api/bindings/%2F/e/{expected_topic_name}/q/{queue_name}/{properties_key}')
+
+
+@pytest.mark.parametrize('user_dict, expected_user', [
+    (
+        {
+            "name": "rabbitmq",
+            "tags": "administrator,management"
+        },
+        RabbitMQUser(name="rabbitmq", tags=["administrator", "management"])
+    )
+])
+def test_get_user__user_exists_and_is_returned(user_dict, expected_user):
+
+    response = Mock()
+    response.status_code = 200
+    response.content = user_dict
+    response.json = Mock(return_value=user_dict)
+
+    request_handler = Mock()
+    request_handler.get = Mock(return_value=response)
+
+    client = RabbitMQRestClient(request_handler=request_handler)
+
+    user = client.get_user('rabbitmq')
+
+    assert expected_user == user
+
+    called_url = request_handler.get.call_args[0][0]
+    assert 'api/users/rabbitmq' == called_url
+
+
+@pytest.mark.parametrize('error_code', [400, 401, 403, 404, 500])
+def test_get_user__http_error_code__raises_api_error(error_code):
+    response = Mock()
+    response.status_code = error_code
+
+    request_handler = Mock()
+    request_handler.get = Mock(return_value=response)
+
+    client = RabbitMQRestClient(request_handler=request_handler)
+
+    with pytest.raises(APIError):
+        client.get_user('name')
+
+
+@pytest.mark.parametrize('get_user_response, exists', [
+    (RabbitMQUser('name'), True),
+    (APIError('error', 400), False),
+    (APIError('error', 401), False),
+    (APIError('error', 403), False),
+    (APIError('error', 404), False),
+    (APIError('error', 500), False)
+])
+def test_user_exists(get_user_response, exists):
+    request_handler = Mock()
+
+    client = RabbitMQRestClient(request_handler=request_handler)
+    if isinstance(get_user_response, APIError):
+        client.get_user = Mock(side_effect=get_user_response)
+    else:
+        client.get_user = Mock(return_value=get_user_response)
+    assert exists == client.user_exists('name')
+
+
+@pytest.mark.parametrize('error_code', [400, 401, 403, 404, 500])
+def test_add_user__http_error_code__raises_api_error(error_code):
+    response = Mock()
+    response.status_code = error_code
+
+    request_handler = Mock()
+    request_handler.put = Mock(return_value=response)
+
+    client = RabbitMQRestClient(request_handler=request_handler)
+
+    with pytest.raises(APIError):
+        client.add_user('name', 'password', RabbitMQUserPermissions(configure=".*", write=".*", read=".*"))
+
+
+def test_add_user():
+    mock_create_user = Mock()
+    mock_set_user_permissions = Mock()
+
+    client = RabbitMQRestClient(request_handler=Mock())
+    client.create_user = mock_create_user
+    client.set_user_permissions = mock_set_user_permissions
+
+    name = 'username'
+    password = 'password'
+    tags = ['administrator']
+    permissions = RabbitMQUserPermissions(configure=".*", write=".*", read=".*")
+
+    client.add_user(name, password, permissions, tags)
+
+    mock_create_user.assert_called_once_with(name, password, tags)
+    mock_set_user_permissions.assert_called_once_with(name, permissions)
+
+
+@pytest.mark.parametrize('error_code', [400, 401, 403, 404, 500])
+def test_create_user__http_error_code__raises_api_error(error_code):
+    response = Mock()
+    response.status_code = error_code
+
+    request_handler = Mock()
+    request_handler.put = Mock(return_value=response)
+
+    client = RabbitMQRestClient(request_handler=request_handler)
+
+    with pytest.raises(APIError):
+        client.create_user('name', 'password')
+
+
+@pytest.mark.parametrize('name, password, tags, expected_data', [
+    ('username', 'password', None, {'password': 'password', 'tags': ""}),
+    ('username', 'password', ['administrator', 'management'],
+     {'password': 'password', 'tags': "administrator management"}),
+])
+def test_create_user(name, password, tags, expected_data):
+    client = RabbitMQRestClient(request_handler=Mock())
+
+    mock_request = Mock()
+    client.perform_request = mock_request
+
+    client.create_user(name, password, tags)
+
+    mock_request.assert_called_once_with('PUT', f'api/users/{name}', json=expected_data)
+
+
+@pytest.mark.parametrize('name, permissions, expected_data', [
+    (
+        'username',
+        RabbitMQUserPermissions(configure=".*", write=".*", read=".*"),
+        {'configure': '.*', 'write': ".*", 'read': ".*"}
+    ),
+])
+def test_set_user_permissions(name, permissions, expected_data):
+    client = RabbitMQRestClient(request_handler=Mock())
+
+    mock_request = Mock()
+    client.perform_request = mock_request
+
+    client.set_user_permissions(name, permissions)
+
+    mock_request.assert_called_once_with('PUT', f'api/permissions/{client.vhost}/{name}', json=expected_data)

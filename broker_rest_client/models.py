@@ -27,25 +27,43 @@ http://opensource.org/licenses/BSD-3-Clause
 
 Details on EUROCONTROL: http://www.eurocontrol.int
 """
+from typing import List, Optional
 
-from setuptools import setup, find_packages
+from rest_client import BaseModel
 
-__author__ = 'EUROCONTROL (SWIM)'
+__author__ = "EUROCONTROL (SWIM)"
 
-setup(
-    name='broker-rest-client',
-    version='0.0.6',
-    description='Broker Rest Client',
-    author='EUROCONTROL (SWIM)',
-    author_email='',
-    packages=find_packages(exclude=['tests']),
-    url='https://bitbucket.org/antavelos-eurocontrol/broker-rest-client',
-    install_requires=[],
-    tests_require=[
-        'pytest',
-        'pytest-cov'
-    ],
-    platforms=['Any'],
-    license='see LICENSE',
-    zip_safe=False
-)
+
+class RabbitMQUserPermissions(BaseModel):
+
+    def __init__(self, configure: str, write: str, read: str) -> None:
+        """
+
+        :param configure:
+        :param write:
+        :param read:
+        """
+        self.configure = configure
+        self.write = write
+        self.read = read
+
+    def to_json(self):
+        return {
+            'configure': self.configure,
+            'write': self.write,
+            'read': self.read
+        }
+
+
+class RabbitMQUser(BaseModel):
+
+    def __init__(self, name: str, tags: Optional[List[str]] = None) -> None:
+        self.name = name
+        self.tags = tags or []
+
+    @classmethod
+    def from_json(cls, user_dict):
+        return cls(
+            name=user_dict['name'],
+            tags=user_dict['tags'].split(',') if user_dict['tags'] else []
+        )

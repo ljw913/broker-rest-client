@@ -30,10 +30,11 @@ Details on EUROCONTROL: http://www.eurocontrol.int
 import typing as t
 from urllib.parse import quote
 
-from requests import Response
 from rest_client import Requestor, ClientFactory
 from rest_client.errors import APIError
 from rest_client.typing import RequestHandler
+
+from broker_rest_client.models import RabbitMQUserPermissions, RabbitMQUser
 
 __author__ = "EUROCONTROL (SWIM)"
 
@@ -50,29 +51,35 @@ class RabbitMQRestClient(Requestor, ClientFactory):
     def vhost(self):
         return quote(self._vhost, safe='')
 
-    def _get_create_topic_url(self, name):
+    def _get_create_topic_url(self, name: str) -> str:
         return f'api/exchanges/{self.vhost}/{name}'
 
-    def _get_delete_topic_url(self, name):
+    def _get_delete_topic_url(self, name: str) -> str:
         return f'api/exchanges/{self.vhost}/{name}'
 
-    def _get_queue_url(self, name):
+    def _get_queue_url(self, name: str) -> str:
         return f'api/queues/{self.vhost}/{name}'
 
-    def _get_create_queue_url(self, name):
+    def _get_create_queue_url(self, name: str) -> str:
         return f'api/queues/{self.vhost}/{name}'
 
-    def _get_delete_queue_url(self, name):
+    def _get_delete_queue_url(self, name: str) -> str:
         return f'api/queues/{self.vhost}/{name}'
 
-    def _get_bind_queue_url(self, queue, topic):
+    def _get_bind_queue_url(self, queue: str, topic: str) -> str:
         return f'api/bindings/{self.vhost}/e/{topic}/q/{queue}'
 
-    def _get_queue_bindings_url(self, queue):
+    def _get_queue_bindings_url(self, queue: str) -> str:
         return f'api/queues/{self.vhost}/{queue}/bindings'
 
-    def _get_delete_queue_binding_url(self, queue, topic, props):
+    def _get_delete_queue_binding_url(self, queue: str, topic: str, props: t.Dict[str, str]) -> str:
         return f'api/bindings/{self.vhost}/e/{topic}/q/{queue}/{props}'
+
+    def _get_user_url(self, name: str) -> str:
+        return f'api/users/{name}'
+
+    def _get_permissions_url(self, user: str) -> str:
+        return f'api/permissions/{self.vhost}/{user}'
 
     def create_topic(self, name: str, durable: t.Optional[bool] = False, auto_delete: t.Optional[bool] = False) -> None:
         """
@@ -207,3 +214,67 @@ class RabbitMQRestClient(Requestor, ClientFactory):
         url = self._get_delete_queue_binding_url(queue, topic, props)
 
         self.perform_request('DELETE', url)
+
+    def get_user(self, name: str) -> RabbitMQUser:
+        """
+
+        :param name:
+        :return:
+        """
+        url = self._get_user_url(name)
+
+        result = self.perform_request('GET', url, response_class=RabbitMQUser)
+
+        return result
+
+    def user_exists(self, name: str) -> bool:
+        """
+
+        :param name:
+        :return:
+        """
+        try:
+            self.get_user(name)
+        except APIError:
+            return False
+
+        return True
+
+    def add_user(self, name: str, password: str, permissions: RabbitMQUserPermissions,
+                 tags: t.Optional[t.List[str]] = None) -> None:
+        """
+        Two separate calls for creating the user and setting its permissions
+        :param name:
+        :param password: plain text
+        :param permissions: i.e. RabbitMQUserPermissions(configure=".*", write=".*", read=".*") for full access
+        :param tags: i.e. [administrator,management]
+        """
+        self.create_user(name, password, tags or [])
+
+        self.set_user_permissions(name, permissions)
+
+    def create_user(self, name: str, password: str, tags: t.Optional[t.List[str]] = None) -> None:
+        """
+        :param name:
+        :param password: plain text
+        :param tags: i.e. [administrator,management]
+        """
+        url = self._get_user_url(name)
+
+        data = {
+            'password': password,
+            'tags': " ".join(tags or [])
+        }
+
+        self.perform_request('PUT', url, json=data)
+
+    def set_user_permissions(self, name: str, permissions: RabbitMQUserPermissions) -> None:
+        """
+        :param name:
+        :param permissions: i.e. RabbitMQUserPermissions(configure=".*", write=".*", read=".*") for full access
+        """
+        url = self._get_permissions_url(name)
+
+        data = permissions.to_json()
+
+        self.perform_request('PUT', url, json=data)
