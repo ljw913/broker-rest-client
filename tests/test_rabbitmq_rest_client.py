@@ -107,18 +107,21 @@ def test_get_queue():
 def test_create_queue():
     durable, auto_delete = False, False
     queue_name = 'some topic'
+    max_length = 10
 
     data = {
         "durable": durable,
         "auto_delete": auto_delete,
-        "arguments": {}
+        "arguments": {
+            'x-max-length': max_length
+        }
     }
 
     client = RabbitMQRestClient(request_handler=Mock())
     mock_request = Mock()
     client.perform_request = mock_request
 
-    client.create_queue(queue_name)
+    client.create_queue(queue_name, max_length)
 
     mock_request.assert_called_once_with('PUT', f'api/queues/{client.vhost}/{queue_name}', json=data)
 

@@ -121,10 +121,15 @@ class RabbitMQRestClient(Requestor, ClientFactory):
 
         return self.perform_request('GET', url)
 
-    def create_queue(self, name: str, durable: t.Optional[bool] = False, auto_delete: t.Optional[bool] = False) -> None:
+    def create_queue(self,
+                     name: str,
+                     max_length: int,
+                     durable: t.Optional[bool] = False,
+                     auto_delete: t.Optional[bool] = False) -> None:
         """
         Creates a new queue
         :param name:
+        :param max_length:
         :param durable: indicates whether the queue survives a broker restart
         :param auto_delete: indicates whether the queue will be deleted
         :raises: rest_client.errors.APIError
@@ -133,7 +138,9 @@ class RabbitMQRestClient(Requestor, ClientFactory):
         data = {
             "durable": durable,
             "auto_delete": auto_delete,
-            "arguments": {}
+            "arguments": {
+                'x-max-length': max_length
+            }
         }
 
         self.perform_request('PUT', url, json=data)
