@@ -381,3 +381,41 @@ def test_set_user_permissions(name, permissions, expected_data):
     client.set_user_permissions(name, permissions)
 
     mock_request.assert_called_once_with('PUT', f'api/permissions/{client.vhost}/{name}', json=expected_data)
+
+
+@pytest.mark.parametrize('error_code', [400, 401, 403, 404, 500])
+def test_create_policy__http_error_code__raises_api_error(error_code):
+    response = Mock()
+    response.status_code = error_code
+
+    request_handler = Mock()
+    request_handler.put = Mock(return_value=response)
+
+    client = RabbitMQRestClient(request_handler=request_handler)
+
+    with pytest.raises(APIError):
+        client.create_policy('name', 'pattern', 1, "queues")
+
+
+@pytest.mark.parametrize('name, pattern, priority, apply_to, definitions, expected_data', [
+    ('my_policy',
+     ".*",
+     1,
+     "queues",
+     {"max-length": 100},
+     {
+        "pattern": ".*",
+        "priority": 1,
+        "apply-to": "queues",
+        "definition": {"max-length": 100}
+     })
+])
+def test_create_policy(name, pattern, priority, apply_to, definitions, expected_data):
+    client = RabbitMQRestClient(request_handler=Mock())
+
+    mock_request = Mock()
+    client.perform_request = mock_request
+
+    client.create_policy(name, pattern, priority, apply_to, definitions=definitions)
+
+    mock_request.assert_called_once_with('PUT', f'api/policies/{client.vhost}/{name}', json=expected_data)

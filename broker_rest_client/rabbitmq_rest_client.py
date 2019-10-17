@@ -81,6 +81,9 @@ class RabbitMQRestClient(Requestor, ClientFactory):
     def _get_permissions_url(self, user: str) -> str:
         return f'api/permissions/{self.vhost}/{user}'
 
+    def _get_policies_url(self, name: str) -> str:
+        return f'api/policies/{self.vhost}/{name}'
+
     def create_topic(self, name: str, durable: t.Optional[bool] = False, auto_delete: t.Optional[bool] = False) -> None:
         """
         Creates a new topic in RabbitMQ. It is basically an exchange of type 'topic'
@@ -285,5 +288,25 @@ class RabbitMQRestClient(Requestor, ClientFactory):
         url = self._get_permissions_url(name)
 
         data = permissions.to_json()
+
+        self.perform_request('PUT', url, json=data)
+
+    def create_policy(self, name: str, pattern: str, priority: int, apply_to: str, definitions: t.Dict[str, t.Any]):
+        """
+
+        :param name: the name of the policy
+        :param pattern: regex to match the name of exchanges and/or queues that is applied
+        :param priority:
+        :param apply_to: "queues", "exchanges" or "all"
+        :param definitions: any extra argument that will be used in definitions, i.e. {"max-langth": 100}
+        """
+        url = self._get_policies_url(name)
+
+        data = {
+            "pattern": pattern,
+            "priority": priority,
+            "apply-to": apply_to,
+            "definition": definitions
+        }
 
         self.perform_request('PUT', url, json=data)
