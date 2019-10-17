@@ -123,7 +123,7 @@ class RabbitMQRestClient(Requestor, ClientFactory):
 
     def create_queue(self,
                      name: str,
-                     max_length: int,
+                     max_length: t.Optional[int] = None,
                      durable: t.Optional[bool] = False,
                      auto_delete: t.Optional[bool] = False) -> None:
         """
@@ -139,9 +139,11 @@ class RabbitMQRestClient(Requestor, ClientFactory):
             "durable": durable,
             "auto_delete": auto_delete,
             "arguments": {
-                'x-max-length': max_length
             }
         }
+
+        if max_length:
+            data["arguments"]["x-max-length"] = max_length
 
         self.perform_request('PUT', url, json=data)
 
