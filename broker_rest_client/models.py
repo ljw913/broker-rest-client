@@ -65,5 +65,5 @@ class RabbitMQUser(BaseModel):
     def from_json(cls, user_dict):
         return cls(
             name=user_dict['name'],
-            tags=user_dict['tags'].split(',') if user_dict['tags'] else []
+            tags=user_dict['tags'] if user_dict['tags'] else []
         )
